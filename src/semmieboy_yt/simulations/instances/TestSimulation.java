@@ -2,6 +2,8 @@ package semmieboy_yt.simulations.instances;
 
 import semmieboy_yt.simulations.Simulation;
 
+import java.awt.*;
+
 public class TestSimulation implements Simulation {
     @Override
     public String getName() {
@@ -14,7 +16,7 @@ public class TestSimulation implements Simulation {
     }
 
     @Override
-    public String init() {
+    public String init(Graphics graphics) {
         return null;
     }
 
