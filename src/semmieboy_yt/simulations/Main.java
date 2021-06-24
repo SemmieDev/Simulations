@@ -1,73 +1,90 @@
 package semmieboy_yt.simulations;
 
+import semmieboy_yt.simulations.instances.GameOfLife;
 import semmieboy_yt.simulations.instances.TestSimulation;
 
+import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
     public static short iterationsSec = 1;
-    public static boolean running = true;
+    public static boolean running;
+    public static final Simulation[] simulations = new Simulation[] {
+            new TestSimulation(),
+            new GameOfLife()
+    };
+    public static final JFrame jFrame = new JFrame();
+    public static final Container container = jFrame.getContentPane();
+    public volatile static int currentSimulation = -1, switchSimulation = -2;
+    public static SimulationRender simulationRender = new SimulationRender();
+    public volatile static boolean render, handleEvents, doStep;
+    private static final short[] step = {0};
 
     public static void main(String[] args) {
-        Simulation[] simulations = new Simulation[] {
-                new TestSimulation()
-        };
+        jFrame.setResizable(false);
+        jFrame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        jFrame.setVisible(true);
 
-        Frame frame = new Frame("Simulations");
-        frame.setResizable(false);
-        frame.setSize(512, 512);
-        frame.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(WindowEvent windowEvent) {
-                frame.dispose();
-            }
-        });
+        Scenes.mainMenu();
+
         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-        frame.setLocation(screenSize.width / 2 - 256, screenSize.height / 2 - 256);
-        frame.setLayout(new FlowLayout(FlowLayout.CENTER, 2, 2));
+        jFrame.setLocation(screenSize.width / 2 - jFrame.getWidth() / 2, screenSize.height / 2 - jFrame.getHeight() / 2);
 
-        Dimension buttonSize = new Dimension(120, 30);
-        for (Simulation simulation : simulations) {
-            Button button = new Button(simulation.getName());
-            button.setPreferredSize(buttonSize);
-            button.addActionListener(event -> setSimulation(simulation));
-            frame.add(button);
-        }
-
-        frame.setVisible(true);
-
-        Thread thread = new Thread(() -> {
-            long time = System.currentTimeMillis();
-            short step = 0;
-            while (true) {
-                if (running) {
-                    while (step >= 1000) {
-                        long now = System.currentTimeMillis();
-                        System.out.println(now - time);
-                        time = now;
-                        step -= 1000;
-                    }
-                    step += iterationsSec;
-                }
-                try {
-                    // TODO: 6/20/2021 Use something else then Thread#sleep, because Thread#sleep is broken
-                    Thread.sleep(1);
-                } catch (InterruptedException exception) {
-                    exception.printStackTrace();
-                }
-            }
-        }, "Game Loop");
-        thread.setDaemon(true);
-        thread.start();
+        Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "Game Loop Thread");
+            thread.setDaemon(true);
+            return thread;
+        }).scheduleAtFixedRate(Main::update, 0, 1, TimeUnit.MILLISECONDS);
     }
 
-    public static void setSimulation(Simulation simulation) {
+    public static void setSimulation(int id) {
+        while (switchSimulation != -2) {
+            try {
+                Thread.sleep(1);
+            } catch (InterruptedException exception) {
+                exception.printStackTrace();
+            }
+        }
+        switchSimulation = id;
+    }
 
+    public static void setSize(int width, int height) {
+        Insets insets = jFrame.getInsets();
+        jFrame.setSize(width + insets.left + insets.right, height + insets.top + insets.bottom);
+    }
+
+    public static synchronized void update() {
+        if (switchSimulation != -2) {
+            handleEvents = render = false;
+            if (currentSimulation != -1) simulations[currentSimulation].stop();
+            if (switchSimulation == -1) {
+                running = false;
+            } else {
+                String error;
+                if ((error = simulations[switchSimulation].init()) != null) {
+                    final int simulation = switchSimulation;
+                    SwingUtilities.invokeLater(() -> {
+                        jFrame.setVisible(false);
+                        JOptionPane.showMessageDialog(jFrame, error, "Failed to initialize "+simulations[simulation].getName(), JOptionPane.ERROR_MESSAGE);
+                        jFrame.dispose();
+                    });
+                }
+                handleEvents = render = true;
+            }
+            currentSimulation = switchSimulation;
+            switchSimulation = -2;
+        } else if (running) {
+            doStep = false;
+            while (step[0] >= 1000) {
+                if (currentSimulation != -1) simulations[currentSimulation].update();
+                step[0] -= 1000;
+            }
+            step[0] += iterationsSec;
+        } else if (doStep) {
+            doStep = false;
+            if (currentSimulation != -1) simulations[currentSimulation].update();
+        }
     }
 }
