@@ -51,8 +51,18 @@ public class Scenes {
             mainMenu();
         });
         exit.setFont(exit.getFont().deriveFont(Font.PLAIN));
-        exit.setBounds(10, 10, 60, 20);
+        exit.setBounds(10, 10, 70, 20);
         Main.container.add(exit);
+
+        JButton reset = new JButton("Reset");
+        reset.addActionListener(actionEvent -> {
+            Main.setSimulation(Main.currentSimulation);
+            simulation();
+            Main.jFrame.repaint();
+        });
+        reset.setFont(reset.getFont().deriveFont(Font.PLAIN));
+        reset.setBounds(10, 60, 70, 20);
+        Main.container.add(reset);
 
         JLabel description = new JLabel(Main.simulations[Main.currentSimulation].getDescription());
         description.setFont(description.getFont().deriveFont(Font.BOLD, 20));
@@ -66,7 +76,7 @@ public class Scenes {
         iterationsSecLabel.setHorizontalAlignment(SwingConstants.CENTER);
         Main.container.add(iterationsSecLabel);
 
-        JSlider iterationsSecSlider = new JSlider(1, 200, Main.iterationsSec);
+        JSlider iterationsSecSlider = new JSlider(1, 201, Main.iterationsSec);
         iterationsSecSlider.setBounds(525, 140, 150, 40);
         iterationsSecSlider.setPaintLabels(true);
         Hashtable<Integer, JComponent> labels = new Hashtable<>();
@@ -78,28 +88,32 @@ public class Scenes {
         iterationsSecSlider.setLabelTable(labels);
         iterationsSecSlider.addChangeListener(changeEvent -> {
             Main.iterationsSec = (short)((JSlider)changeEvent.getSource()).getValue();
-            iterationsSecLabel.setText(Main.iterationsSec+" iterations/sec");
+            if (Main.iterationsSec == 201) {
+                iterationsSecLabel.setText("Max iterations/sec");
+            } else {
+                iterationsSecLabel.setText(Main.iterationsSec + " iterations/sec");
+            }
         });
         Main.container.add(iterationsSecSlider);
 
-        JButton pauseResume = new JButton("Resume");
+        JButton pauseResume = new JButton("Play");
         pauseResume.addActionListener(actionEvent -> {
             if (Main.running) {
                 Main.running = false;
-                pauseResume.setText("Resume");
+                pauseResume.setText("Play");
             } else {
                 Main.running = true;
                 pauseResume.setText("Pause");
             }
         });
         pauseResume.setFont(exit.getFont().deriveFont(Font.PLAIN));
-        pauseResume.setBounds(525, 200, 100, 20);
+        pauseResume.setBounds(525, 200, 85, 20);
         Main.container.add(pauseResume);
 
         JButton step = new JButton("Step");
         step.addActionListener(actionEvent -> Main.doStep = true);
         step.setFont(step.getFont().deriveFont(Font.PLAIN));
-        step.setBounds(625, 200, 70, 20);
+        step.setBounds(610, 200, 85, 20);
         Main.container.add(step);
     }
 }

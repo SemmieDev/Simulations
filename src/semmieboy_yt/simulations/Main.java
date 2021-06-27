@@ -1,10 +1,12 @@
 package semmieboy_yt.simulations;
 
 import semmieboy_yt.simulations.instances.GameOfLife;
+import semmieboy_yt.simulations.instances.PixelsFighting;
 import semmieboy_yt.simulations.instances.TestSimulation;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -13,14 +15,17 @@ public class Main {
     public static boolean running;
     public static final Simulation[] simulations = new Simulation[] {
             new TestSimulation(),
-            new GameOfLife()
+            new GameOfLife(),
+            new PixelsFighting()
     };
     public static final JFrame jFrame = new JFrame();
     public static final Container container = jFrame.getContentPane();
     public volatile static int currentSimulation = -1, switchSimulation = -2;
     public static SimulationRender simulationRender = new SimulationRender();
-    public volatile static boolean render, handleEvents, doStep;
-    private static final short[] step = {0};
+    public volatile static boolean render, handleEvents, doStep, fastMode;
+
+    private static short step = 0;
+    private static Thread fastGameLoop;
 
     public static void main(String[] args) {
         jFrame.setResizable(false);
@@ -32,11 +37,32 @@ public class Main {
         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
         jFrame.setLocation(screenSize.width / 2 - jFrame.getWidth() / 2, screenSize.height / 2 - jFrame.getHeight() / 2);
 
-        Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "Game Loop Thread");
-            thread.setDaemon(true);
-            return thread;
-        }).scheduleAtFixedRate(Main::update, 0, 1, TimeUnit.MILLISECONDS);
+        try {
+            Executors.newSingleThreadScheduledExecutor(runnable -> {
+                Thread thread = new Thread(runnable, "Game Loop Thread");
+                thread.setDaemon(true);
+                return thread;
+            }).scheduleAtFixedRate(() -> {
+                if (iterationsSec == 201) {
+                    if (!fastMode) {
+                        fastMode = true;
+                        fastGameLoop = new Thread(() -> {
+                            while (fastMode) {
+                                update();
+                                if (fastMode) fastMode = iterationsSec == 201;
+                            }
+                            System.out.println("hey");
+                        }, "Fast Game Loop Thread");
+                        fastGameLoop.setDaemon(true);
+                        fastGameLoop.start();
+                    }
+                } else {
+                    Main.update();
+                }
+            }, 0, 1, TimeUnit.MILLISECONDS).get();
+        } catch (InterruptedException | ExecutionException exception) {
+            exception.printStackTrace();
+        }
     }
 
     public static void setSimulation(int id) {
@@ -56,35 +82,54 @@ public class Main {
     }
 
     public static synchronized void update() {
+        final int switchSimulation = Main.switchSimulation;
+        Main.switchSimulation = -2;
         if (switchSimulation != -2) {
             handleEvents = render = false;
-            if (currentSimulation != -1) simulations[currentSimulation].stop();
-            if (switchSimulation == -1) {
+            if (currentSimulation != -1) {
+                if (fastMode) {
+                    fastMode = false;
+                    try {
+                        fastGameLoop.join();
+                    } catch (InterruptedException exception) {
+                        exception.printStackTrace();
+                    }
+                }
+                simulations[currentSimulation].stop();
                 running = false;
-            } else {
+                iterationsSec = 1;
+            }
+            if (switchSimulation != -1) {
                 String error;
                 if ((error = simulations[switchSimulation].init()) != null) {
-                    final int simulation = switchSimulation;
                     SwingUtilities.invokeLater(() -> {
                         jFrame.setVisible(false);
-                        JOptionPane.showMessageDialog(jFrame, error, "Failed to initialize "+simulations[simulation].getName(), JOptionPane.ERROR_MESSAGE);
+                        JOptionPane.showMessageDialog(jFrame, error, "Failed to initialize "+simulations[switchSimulation].getName(), JOptionPane.ERROR_MESSAGE);
                         jFrame.dispose();
                     });
                 }
                 handleEvents = render = true;
             }
             currentSimulation = switchSimulation;
-            switchSimulation = -2;
         } else if (running) {
+            // TODO: 6/25/2021 Clean up this mess
             doStep = false;
-            while (step[0] >= 1000) {
+            if (iterationsSec == 201) {
                 if (currentSimulation != -1) simulations[currentSimulation].update();
-                step[0] -= 1000;
+            } else {
+                while (step >= 1000) {
+                    if (currentSimulation != -1) simulations[currentSimulation].update();
+                    step -= 1000;
+                }
+                step += iterationsSec;
             }
-            step[0] += iterationsSec;
         } else if (doStep) {
             doStep = false;
             if (currentSimulation != -1) simulations[currentSimulation].update();
         }
+    }
+
+    private static void asapMode() {
+
     }
 }

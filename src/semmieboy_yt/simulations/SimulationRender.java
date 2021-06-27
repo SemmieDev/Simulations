@@ -54,6 +54,12 @@ public class SimulationRender extends JComponent {
 
     @Override
     public void paint(Graphics graphics) {
+        boolean running = false;
+        if (Main.running) {
+            running = true;
+            Main.running = false;
+        }
         if (Main.render) Main.simulations[Main.currentSimulation].repaint(graphics);
+        if (running) Main.running = true;
     }
 }
